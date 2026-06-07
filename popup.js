@@ -4,15 +4,10 @@ const PRESETS = {
   compressor: {
     defaultPreset: 'gentle',
     presets: {
-      gentle: {
-        threshold: -20, knee: 10, ratio: 4, attack: 0.005, release: 0.05
-      },
-      moderate: {
-        threshold: -30, knee: 15, ratio: 8, attack: 0.003, release: 0.08
-      },
-      heavy: {
-        threshold: -40, knee: 5, ratio: 20, attack: 0.002, release: 0.1
-      }
+      gentle:  { threshold: -20, knee: 10, ratio: 4,  attack: 0.005, release: 0.05  },
+      moderate:{ threshold: -30, knee: 15, ratio: 8,  attack: 0.003, release: 0.08  },
+      heavy:   { threshold: -40, knee: 5,  ratio: 20, attack: 0.002, release: 0.1   },
+      custom:  { threshold: -24, knee: 30, ratio: 12, attack: 0.003, release: 0.25  }
     }
   }
 };
@@ -21,8 +16,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   await renderTabs();
   setupAccordion();
   setupPresetRadios();
+  setupCustomSliders();
   await restoreTargetTab();
 });
+
+/* ── helpers ── */
 
 function setStatus(msg, isError) {
   const el = document.getElementById('status-bar');
@@ -34,15 +32,29 @@ function setStatus(msg, isError) {
   }
 }
 
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
+}
+
+function formatParam(name, value) {
+  switch (name) {
+    case 'threshold': return `${value} dB`;
+    case 'knee':      return `${value} dB`;
+    case 'ratio':     return `${value}:1`;
+    case 'attack':    return `${Math.round(value * 1000)} ms`;
+    case 'release':   return `${Math.round(value * 1000)} ms`;
+    default:          return value;
+  }
+}
+
 /* ── tabs ── */
 
 async function restoreTargetTab() {
   const { targetTabId: saved } = await chrome.storage.local.get('targetTabId');
   if (saved) {
     const tabs = await chrome.tabs.query({});
-    if (tabs.some(t => t.id === saved)) {
-      selectTab(saved);
-    }
+    if (tabs.some(t => t.id === saved)) selectTab(saved);
   }
 }
 
@@ -113,10 +125,29 @@ async function restoreTweakState() {
     const name = group.dataset.group;
     const gs = (state && state[name]) || {};
     const master = group.querySelector('.group-master-toggle');
-    const radio = group.querySelector(`input[value="${gs.preset || PRESETS[name].defaultPreset}"]`);
+
+    const preset = gs.preset || PRESETS[name].defaultPreset;
+    const radio = group.querySelector(`input[value="${preset}"]`);
 
     master.checked = gs.enabled === true;
     if (radio) radio.checked = true;
+
+    const controls = group.querySelector('.custom-controls');
+    if (controls) {
+      const cp = gs.customParams;
+      if (cp) {
+        PRESETS[name].presets.custom = { ...PRESETS[name].presets.custom, ...cp };
+      }
+      controls.querySelectorAll('input[data-param]').forEach(slider => {
+        const val = PRESETS[name].presets.custom[slider.dataset.param];
+        if (val !== undefined) {
+          slider.value = val;
+          const valueEl = slider.parentElement.querySelector('.param-value');
+          if (valueEl) valueEl.textContent = formatParam(slider.dataset.param, val);
+        }
+      });
+      controls.classList.toggle('visible', radio && radio.value === 'custom' && radio.checked);
+    }
   });
 }
 
@@ -127,8 +158,8 @@ function setupAccordion() {
     header.addEventListener('click', e => {
       if (e.target.closest('.switch')) return;
       const body = header.nextElementSibling;
-      const expanded = body.classList.toggle('expanded');
-      header.classList.toggle('expanded', expanded);
+      body.classList.toggle('expanded');
+      header.classList.toggle('expanded');
     });
   });
 
@@ -148,20 +179,71 @@ function setupAccordion() {
 
 function setupPresetRadios() {
   document.querySelectorAll('.preset-option input[type="radio"]').forEach(radio => {
-    radio.addEventListener('change', async () => {
+    radio.addEventListener('change', () => {
       if (!targetTabId || !radio.checked) return;
+
       const group = radio.closest('.tweak-group');
       const name = group.dataset.group;
       const preset = radio.value;
-      const params = PRESETS[name].presets[preset];
+
+      const controls = group.querySelector('.custom-controls');
+      if (controls) controls.classList.toggle('visible', preset === 'custom');
 
       group.querySelector('.group-master-toggle').checked = true;
-      await persistAndSend(name, true, preset, params);
+
+      const params = PRESETS[name].presets[preset];
+      persistAndSend(name, true, preset, params);
     });
   });
 }
 
-/* ── helpers ── */
+/* ── custom slider live preview ── */
+
+function setupCustomSliders() {
+  const liveSend = debounce(async group => {
+    if (!targetTabId) return;
+    const name = group.dataset.group;
+    const master = group.querySelector('.group-master-toggle');
+    if (!master.checked) return;
+
+    const params = getCustomParams(group);
+    await sendOnly(name, params);
+  }, 40);
+
+  document.querySelectorAll('.custom-controls input[data-param]').forEach(slider => {
+    const group = slider.closest('.tweak-group');
+
+    slider.addEventListener('input', () => {
+      const param = slider.dataset.param;
+      const value = parseFloat(slider.value);
+      const valueEl = slider.parentElement.querySelector('.param-value');
+      if (valueEl) valueEl.textContent = formatParam(param, value);
+
+      PRESETS[group.dataset.group].presets.custom[param] = value;
+      liveSend(group);
+    });
+
+    slider.addEventListener('change', async () => {
+      const name = group.dataset.group;
+      const params = getCustomParams(group);
+      const key = `tab_${targetTabId}`;
+      const { [key]: state } = await chrome.storage.local.get(key);
+      await chrome.storage.local.set({
+        [key]: { ...(state || {}), [name]: { ...(state?.[name] || {}), customParams: params } }
+      });
+    });
+  });
+}
+
+function getCustomParams(group) {
+  const params = {};
+  group.querySelectorAll('.custom-controls input[data-param]').forEach(slider => {
+    params[slider.dataset.param] = parseFloat(slider.value);
+  });
+  return params;
+}
+
+/* ── state / messaging ── */
 
 function selectedPreset(groupName) {
   const r = document.querySelector(`input[name="${groupName}-preset"]:checked`);
@@ -171,19 +253,25 @@ function selectedPreset(groupName) {
 async function persistAndSend(groupName, enabled, preset, params) {
   const key = `tab_${targetTabId}`;
   const { [key]: state } = await chrome.storage.local.get(key);
+
+  const groupState = { enabled, preset };
+  if (preset === 'custom') groupState.customParams = params;
+
   await chrome.storage.local.set({
-    [key]: { ...(state || {}), [groupName]: { enabled, preset } }
+    [key]: { ...(state || {}), [groupName]: groupState }
   });
 
+  await sendOnly(groupName, params, enabled);
+}
+
+async function sendOnly(groupName, params, enabled) {
   try {
     await chrome.tabs.sendMessage(targetTabId, {
       action: 'apply_tweak',
       tweak: groupName,
-      enabled,
-      preset,
+      enabled: enabled !== undefined ? enabled : true,
       params
     });
-    setStatus(enabled ? `${preset} ON` : `${groupName} OFF`);
   } catch (e) {
     const msg = e.message && e.message.includes('tab')
       ? 'Tab gone – select a new one'

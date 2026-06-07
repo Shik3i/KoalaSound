@@ -44,6 +44,38 @@
               <span class="preset-name">Heavy</span>
               <span class="preset-desc">-40dB · 20:1</span>
             </label>
+            <label class="preset-option">
+              <input type="radio" name="compressor-preset" value="custom">
+              <span class="preset-name">Custom</span>
+              <span class="preset-desc">manual</span>
+            </label>
+            <div class="custom-controls" id="compressor-custom">
+              <div class="param-row">
+                <span class="param-label">Threshold</span>
+                <input type="range" min="-60" max="0" value="-24" step="1" data-param="threshold">
+                <span class="param-value">-24 dB</span>
+              </div>
+              <div class="param-row">
+                <span class="param-label">Knee</span>
+                <input type="range" min="0" max="40" value="30" step="1" data-param="knee">
+                <span class="param-value">30 dB</span>
+              </div>
+              <div class="param-row">
+                <span class="param-label">Ratio</span>
+                <input type="range" min="1" max="20" value="12" step="0.5" data-param="ratio">
+                <span class="param-value">12:1</span>
+              </div>
+              <div class="param-row">
+                <span class="param-label">Attack</span>
+                <input type="range" min="0" max="1" value="0.003" step="0.001" data-param="attack">
+                <span class="param-value">3 ms</span>
+              </div>
+              <div class="param-row">
+                <span class="param-label">Release</span>
+                <input type="range" min="0" max="1" value="0.25" step="0.005" data-param="release">
+                <span class="param-value">250 ms</span>
+              </div>
+            </div>
           </div>
         </div>
 
