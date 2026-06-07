@@ -55,6 +55,36 @@ body {
   letter-spacing: 0.5px;
 }
 
+.header-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-version {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 400;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.header-gh-link {
+  display: flex;
+  align-items: center;
+  color: var(--text-dim);
+  opacity: 0.4;
+  transition: opacity 0.2s, color 0.2s;
+  text-decoration: none;
+  line-height: 0;
+}
+
+.header-gh-link:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
 /* ─── section headers ─── */
 
 .section-head {
