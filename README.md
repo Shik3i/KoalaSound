@@ -108,15 +108,17 @@ KoalaSound/
 Each `<video>` / `<audio>` element gets its own processing chain using the Web Audio API:
 
 ```
-MediaElement → dryGain → destination  (all groups off)
-             ↘ compressor → 5‑band EQ → wetGain ↗ (one or more groups on)
+                  ┌→ dryGain →┐
+MediaElement → src┼→ compressor → compGain →┼→ destination
+                  └→ 5‑band EQ → eqGain  →┘
 ```
 
-- **Bypassed** (all groups off): `dryGain` at 100 %, `wetGain` at 0 % — signal passes through unchanged.
-- **Active** (one or more groups on): `dryGain` at 0 %, `wetGain` at 100 % — signal routed through the compressor and EQ chain.
-- **Toggle**: Cross‑fades over 40 ms via `linearRampToValueAtTime` to avoid clicks or dropouts.
-- **Per‑group bypass**: Compressor at ratio 1 / threshold 0 is effectively transparent; EQ filters at 0 dB gain pass audio unchanged.
-- **Custom**: All five compressor parameters (`threshold`, `knee`, `ratio`, `attack`, `release`) and five EQ band gains are written directly to the `AudioParam` objects — no additional filtering, no script processor, zero latency overhead.
+- **All groups off**: `dryGain = 1`, `compGain = 0`, `eqGain = 0` — signal passes through with only AudioContext buffer latency (~2.7 ms).
+- **Compressor only**: `compGain = 1` — signal routed through `DynamicsCompressorNode` only. The compressor adds ~6 ms lookahead (implementation‑fixed).
+- **EQ only**: `eqGain = 1` — signal routed through `BiquadFilterNode`s. Negligible added delay.
+- **Both active**: `compGain = 0.5`, `eqGain = 0.5` — parallel processing, gain‑compensated so output level does not double.
+- **Toggle**: 40 ms `linearRampToValueAtTime` crossfade — no clicks or dropouts. Uses `cancelScheduledValues` to handle overlapping ramps cleanly.
+- **Per‑group bypass**: when a group is off, its entire AudioNode chain is gain‑staged to 0 — no unnecessary signal processing in the audible path.
 
 ### Why cross‑fade instead of connect/disconnect?
 
@@ -185,6 +187,18 @@ Chrome suspends any `AudioContext` created without a direct user gesture in the 
 **What happens:** The toggle shows "ON", the gain ramps complete internally, but no audio processes until the user clicks or taps anywhere inside the target tab. After that, the context resumes and the compressor springs to life.
 
 **Detection:** We log a warning to the console (`needs tab interaction to resume AudioContext`). The extension cannot show a UI prompt inside the tab because that would be intrusive.
+
+### ❌ Compressor lookahead latency
+
+The Web Audio `DynamicsCompressorNode` uses a fixed internal **lookahead** (~6 ms in Chrome) to analyse incoming audio before applying gain reduction. When the compressor is ON, the processed audio arrives ~6 ms later than the unprocessed signal.
+
+**Impact:** In action scenes with sharp transients (gunshots, impacts), the sound may feel slightly delayed relative to the video — the flash appears ~6 ms before the boom.
+
+**Why we can't fully eliminate it:**
+- The lookahead is baked into the browser's implementation — no Web API exposes a parameter to reduce or disable it.
+- A zero‑lookahead compressor would require a custom `AudioWorkletNode`, which is a significant undertaking.
+
+**Mitigation:** The new parallel‑path architecture (v0.4) ensures that the compressor chain is only in the signal path when the compressor group is actually ON. The EQ chain has its own independent path and adds no extra latency on top of the compressor.
 
 ### ⚠️ Shadow DOM media
 
