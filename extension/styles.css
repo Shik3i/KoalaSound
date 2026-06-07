@@ -144,6 +144,37 @@ body {
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
+.tab-reload-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 5px;
+  line-height: 1;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  opacity: 0.2;
+}
+
+.tab-reload-btn:hover {
+  opacity: 1;
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--surface-hover);
+}
+
+.tab-reload-btn:active {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .tab-select-icon { font-size: 14px; flex-shrink: 0; }
 
 .tab-select-label {

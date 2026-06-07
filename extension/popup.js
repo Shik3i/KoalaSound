@@ -87,6 +87,17 @@ function setupTabSelect() {
 
   document.addEventListener('click', closeDropdown);
   dropdown.addEventListener('click', e => e.stopPropagation());
+
+  document.getElementById('tabReloadBtn').addEventListener('click', async e => {
+    e.stopPropagation();
+    if (!targetTabId) return;
+    try {
+      await chrome.tabs.reload(targetTabId);
+      setStatus('Tab reloaded', false);
+    } catch {
+      setStatus('Could not reload tab', true);
+    }
+  });
 }
 
 function openDropdown() {

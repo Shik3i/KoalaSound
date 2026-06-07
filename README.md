@@ -22,7 +22,7 @@
 ## Features
 
 | | |
-|---|---|---|
+|---|---|
 | **🎯 Tab Dropdown** | Custom‑styled dropdown — audible tabs float to the top with 🔊, closes on outside click, slide+fade animation |
 | **📦 Accordion Groups** | Smooth `max-height` expand/collapse — one click to toggle, another to expand details |
 | **🎚 Compressor** | DynamicsCompressorNode with 4 fixed presets (Gentle / Moderate / Movie / Heavy) + fully custom slider mode |
