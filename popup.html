@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="header">
+      <h1>KoalaSound</h1>
+    </div>
+
+    <div id="tab-section">
+      <h2><span>Tabs</span><span id="tab-count"></span></h2>
+      <div id="tab-list"></div>
+    </div>
+
+    <div id="tweaks-section">
+      <h2>Audio Tweaks</h2>
+      <div id="tweaks" class="disabled">
+        <div class="tweak">
+          <span>Compressor</span>
+          <label class="switch">
+            <input type="checkbox" class="tweak-toggle" data-tweak="compressor">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div id="status-bar"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
