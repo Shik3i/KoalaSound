@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "KoalaSound",
-  "version": "0.5.0",
-  "version_name": "0.5",
+  "version": "0.6.0",
+  "version_name": "0.6",
   "description": "Audio tweaks for video tabs — compressor with live-preview sliders",
   "author": "KoalaDev",
   "homepage_url": "https://github.com/Shik3i/KoalaSound",
