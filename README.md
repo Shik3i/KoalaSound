@@ -22,10 +22,11 @@
 ## Features
 
 | | |
-|---|---|
+|---|---|---|
 | **🎯 Tab Dropdown** | Custom‑styled dropdown — audible tabs float to the top with 🔊, closes on outside click, slide+fade animation |
 | **📦 Accordion Groups** | Smooth `max-height` expand/collapse — one click to toggle, another to expand details |
-| **🎚 Compressor** | DynamicsCompressorNode with 3 fixed presets (Gentle / Moderate / Heavy) + fully custom slider mode |
+| **🎚 Compressor** | DynamicsCompressorNode with 4 fixed presets (Gentle / Moderate / Movie / Heavy) + fully custom slider mode |
+| **🎛 Equalizer** | 5‑band graphic EQ (Bass / Low‑Mid / Mid / High‑Mid / Air) with 4 presets + custom mode |
 | **⚡ Live Preview** | Drag any slider in Custom mode — changes arrive 40 ms later. Hear it while you tweak it |
 | **💾 Per-tab State** | The selected tab, its enabled tweaks, active preset, and custom slider values all persist in `chrome.storage.local` |
 | **🔒 Zero Dependencies** | No CDN, no fonts, no build step, no runtime — pure ES2020, plain CSS, single manifest |
@@ -59,19 +60,30 @@ git clone https://github.com/Shik3i/KoalaSound.git
 ```
 1. Click the KoalaSound toolbar icon
 2. Open the dropdown → pick a target tab       ← 🔊 = tab is playing audio
-3. Expand the Compressor group                  ← click the header
-4. Choose a preset (Gentle / Moderate / Heavy)
-   — or select Custom and drag the sliders
+3. Expand a group (Compressor / Equalizer)      ← click the header
+4. Choose a preset or select Custom + drag sliders
 5. The master toggle re‑activates the last used preset
 ```
 
-| Preset | Threshold | Ratio | Release | Best for |
-|--------|-----------|-------|---------|----------|
-| **Gentle** | −20 dB | 4:1 | 50 ms | Dialogue, speech |
-| **Moderate** | −30 dB | 8:1 | 80 ms | General purpose, podcasts |
-| **Movie** 🎬 | −35 dB | 12:1 | 250 ms | Action flics — Dialog lauter, Explosionen leiser |
-| **Heavy** | −40 dB | 20:1 | 100 ms | Extreme dynamic range, quiet environments |
-| **Custom** | any | any | any | Experimentation / live tuning |
+### Compressor
+
+| Preset | Threshold | Ratio | Release | Attack | Best for |
+|--------|-----------|-------|---------|--------|----------|
+| **Gentle** | −10 dB | 2.5:1 | 250 ms | 30 ms | Dialogue, speech — transparent |
+| **Moderate** | −18 dB | 4:1 | 200 ms | 20 ms | General purpose, podcasts |
+| **Movie** 🎬 | −24 dB | 8:1 | 300 ms | 10 ms | Action — dialog clearer, peaks controlled |
+| **Heavy** | −32 dB | 20:1 | 150 ms | 3 ms | Extreme dynamic range, quiet environments |
+| **Custom** | any | any | any | any | Experimentation / live tuning |
+
+### Equalizer
+
+| Preset | Bass<br>80 Hz | Low‑Mid<br>350 Hz | Mid<br>1 kHz | High‑Mid<br>4 kHz | Air<br>12 kHz | Best for |
+|--------|:---:|:---:|:---:|:---:|:---:|----------|
+| **Flat** | 0 dB | 0 dB | 0 dB | 0 dB | 0 dB | No EQ |
+| **Podcast** 🎙 | −2 dB | 0 dB | +3 dB | +4 dB | +2 dB | Voice clarity, presence |
+| **Movie Bass** 🎬 | +5 dB | +3 dB | −1 dB | +1 dB | +3 dB | Cinematic low‑end |
+| **Bright** ✨ | −1 dB | −2 dB | 0 dB | +3 dB | +5 dB | Treble detail, airy |
+| **Custom** | any | any | any | any | any | Manual sliders |
 
 ## Project structure
 
@@ -96,14 +108,15 @@ KoalaSound/
 Each `<video>` / `<audio>` element gets its own processing chain using the Web Audio API:
 
 ```
-MediaElement → dryGain → destination  (bypass / compressor off)
-             ↘ compressor → wetGain ↗ (compressor on)
+MediaElement → dryGain → destination  (all groups off)
+             ↘ compressor → 5‑band EQ → wetGain ↗ (one or more groups on)
 ```
 
-- **Bypassed** (off): `dryGain` at 100 %, `wetGain` at 0 % — signal passes through unchanged.
-- **Active** (on): `dryGain` at 0 %, `wetGain` at 100 % — signal routed through the `DynamicsCompressorNode`.
+- **Bypassed** (all groups off): `dryGain` at 100 %, `wetGain` at 0 % — signal passes through unchanged.
+- **Active** (one or more groups on): `dryGain` at 0 %, `wetGain` at 100 % — signal routed through the compressor and EQ chain.
 - **Toggle**: Cross‑fades over 40 ms via `linearRampToValueAtTime` to avoid clicks or dropouts.
-- **Custom**: All five compressor parameters (`threshold`, `knee`, `ratio`, `attack`, `release`) are written directly to the `AudioParam` objects — no additional filtering, no script processor, zero latency overhead.
+- **Per‑group bypass**: Compressor at ratio 1 / threshold 0 is effectively transparent; EQ filters at 0 dB gain pass audio unchanged.
+- **Custom**: All five compressor parameters (`threshold`, `knee`, `ratio`, `attack`, `release`) and five EQ band gains are written directly to the `AudioParam` objects — no additional filtering, no script processor, zero latency overhead.
 
 ### Why cross‑fade instead of connect/disconnect?
 
@@ -128,8 +141,8 @@ The naive approach disconnects the compressor node from the destination and re�
 
 | Component | Role |
 |-----------|------|
-| **popup.html / popup.js** | Renders the dropdown tab selector, accordion groups, preset radios, custom sliders. Sends messages to the active tab. Persists state in `chrome.storage.local` |
-| **content.js** | Loaded into every page at `document_idle`. Listens for `apply_tweak` messages. Creates AudioContext lazily, manages per‑element `WeakMap` chains, applies cross‑fades |
+| **popup.html / popup.js** | Renders the dropdown tab selector, accordion groups, preset radios, custom sliders. Sends messages to the active tab. Persists state in `chrome.storage.local`. Groups can be toggled independently; `activeCount` coordinates the shared wet/dry crossfade |
+| **content.js** | Loaded into every page at `document_idle`. Listens for `apply_tweak` messages. Creates AudioContext lazily, manages per‑element `WeakMap` chains with compressor + 5‑band EQ, applies cross‑fades via 40 ms `linearRamp` |
 | **background.js** | Minimal service worker — currently a no‑op, kept as a hook for future features |
 
 ## CI / Release
@@ -218,7 +231,7 @@ This is negligible — an idle AudioContext consumes no CPU and minimal memory (
 1. **HTML** — Add a new `.tweak-group` block in `extension/popup.html`
 2. **Presets** — Add an entry to `PRESETS` in `extension/popup.js`
 3. **Content** — Add a `case` for the new tweak in the `chrome.runtime.onMessage` listener in `extension/content.js`
-4. **Wire** — The popup's `persistAndSend` → `sendOnly` → `chrome.tabs.sendMessage` already handles generic dispatch
+4. **Routing** — Insert the new `AudioNode` in the wet chain in `setupChain()`; the per‑group bypass state and global `activeCount` crossfade are handled automatically
 
 ## License
 

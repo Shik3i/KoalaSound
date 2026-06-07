@@ -6,11 +6,21 @@ const PRESETS = {
   compressor: {
     defaultPreset: 'gentle',
     presets: {
-      gentle:   { threshold: -20, knee: 10, ratio: 4,  attack: 0.005, release: 0.05  },
-      moderate: { threshold: -30, knee: 15, ratio: 8,  attack: 0.003, release: 0.08  },
-      movie:    { threshold: -35, knee: 10, ratio: 12, attack: 0.002, release: 0.25  },
-      heavy:    { threshold: -40, knee: 5,  ratio: 20, attack: 0.002, release: 0.1   },
-      custom:   { threshold: -24, knee: 30, ratio: 12, attack: 0.003, release: 0.25  }
+      gentle:   { threshold: -10, knee: 5,  ratio: 2.5, attack: 0.030, release: 0.250 },
+      moderate: { threshold: -18, knee: 10, ratio: 4,   attack: 0.020, release: 0.200 },
+      movie:    { threshold: -24, knee: 15, ratio: 8,   attack: 0.010, release: 0.300 },
+      heavy:    { threshold: -32, knee: 5,  ratio: 20,  attack: 0.003, release: 0.150 },
+      custom:   { threshold: -24, knee: 30, ratio: 12,  attack: 0.003, release: 0.250 }
+    }
+  },
+  equalizer: {
+    defaultPreset: 'flat',
+    presets: {
+      flat:      { bass: 0,   lowMid: 0,   mid: 0,   highMid: 0,   air: 0   },
+      podcast:   { bass: -2,  lowMid: 0,   mid: 3,   highMid: 4,   air: 2   },
+      movieBass: { bass: 5,   lowMid: 3,   mid: -1,  highMid: 1,   air: 3   },
+      bright:    { bass: -1,  lowMid: -2,  mid: 0,   highMid: 3,   air: 5   },
+      custom:    { bass: 0,   lowMid: 0,   mid: 0,   highMid: 0,   air: 0   }
     }
   }
 };
@@ -51,6 +61,11 @@ function formatParam(name, value) {
     case 'ratio':     return `${value}:1`;
     case 'attack':
     case 'release':   return `${Math.round(value * 1000)} ms`;
+    case 'bass':
+    case 'lowMid':
+    case 'mid':
+    case 'highMid':
+    case 'air':       return `${value > 0 ? '+' : ''}${value} dB`;
     default:          return value;
   }
 }

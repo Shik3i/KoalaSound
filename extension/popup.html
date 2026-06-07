@@ -50,22 +50,22 @@
             <label class="preset-option">
               <input type="radio" name="compressor-preset" value="gentle">
               <span class="preset-name">Gentle</span>
-              <span class="preset-desc">-20dB · 4:1</span>
+              <span class="preset-desc">-10dB · 2.5:1</span>
             </label>
             <label class="preset-option">
               <input type="radio" name="compressor-preset" value="moderate">
               <span class="preset-name">Moderate</span>
-              <span class="preset-desc">-30dB · 8:1</span>
+              <span class="preset-desc">-18dB · 4:1</span>
             </label>
             <label class="preset-option">
               <input type="radio" name="compressor-preset" value="movie">
               <span class="preset-name">Movie</span>
-              <span class="preset-desc">-35dB · 12:1</span>
+              <span class="preset-desc">-24dB · 8:1</span>
             </label>
             <label class="preset-option">
               <input type="radio" name="compressor-preset" value="heavy">
               <span class="preset-name">Heavy</span>
-              <span class="preset-desc">-40dB · 20:1</span>
+              <span class="preset-desc">-32dB · 20:1</span>
             </label>
             <label class="preset-option">
               <input type="radio" name="compressor-preset" value="custom">
@@ -97,6 +97,71 @@
                 <span class="param-label">Release</span>
                 <input type="range" min="0" max="1" value="0.25" step="0.005" data-param="release">
                 <input type="text" class="param-value" inputmode="decimal" data-param="release">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tweak-group" data-group="equalizer">
+          <div class="tweak-group-header">
+            <span class="tweak-group-arrow">▶</span>
+            <span class="tweak-group-label">Equalizer</span>
+            <label class="switch">
+              <input type="checkbox" class="group-master-toggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="tweak-group-body">
+            <label class="preset-option">
+              <input type="radio" name="equalizer-preset" value="flat">
+              <span class="preset-name">Flat</span>
+              <span class="preset-desc">0dB all</span>
+            </label>
+            <label class="preset-option">
+              <input type="radio" name="equalizer-preset" value="podcast">
+              <span class="preset-name">Podcast</span>
+              <span class="preset-desc">+4dB mids</span>
+            </label>
+            <label class="preset-option">
+              <input type="radio" name="equalizer-preset" value="movieBass">
+              <span class="preset-name">Movie Bass</span>
+              <span class="preset-desc">+5dB lows</span>
+            </label>
+            <label class="preset-option">
+              <input type="radio" name="equalizer-preset" value="bright">
+              <span class="preset-name">Bright</span>
+              <span class="preset-desc">+5dB highs</span>
+            </label>
+            <label class="preset-option">
+              <input type="radio" name="equalizer-preset" value="custom">
+              <span class="preset-name">Custom</span>
+              <span class="preset-desc">manual</span>
+            </label>
+            <div class="custom-controls" id="equalizer-custom">
+              <div class="param-row">
+                <span class="param-label">Bass</span>
+                <input type="range" min="-12" max="12" value="0" step="0.5" data-param="bass">
+                <input type="text" class="param-value" inputmode="decimal" data-param="bass">
+              </div>
+              <div class="param-row">
+                <span class="param-label">Low Mid</span>
+                <input type="range" min="-12" max="12" value="0" step="0.5" data-param="lowMid">
+                <input type="text" class="param-value" inputmode="decimal" data-param="lowMid">
+              </div>
+              <div class="param-row">
+                <span class="param-label">Mid</span>
+                <input type="range" min="-12" max="12" value="0" step="0.5" data-param="mid">
+                <input type="text" class="param-value" inputmode="decimal" data-param="mid">
+              </div>
+              <div class="param-row">
+                <span class="param-label">High Mid</span>
+                <input type="range" min="-12" max="12" value="0" step="0.5" data-param="highMid">
+                <input type="text" class="param-value" inputmode="decimal" data-param="highMid">
+              </div>
+              <div class="param-row">
+                <span class="param-label">Air</span>
+                <input type="range" min="-12" max="12" value="0" step="0.5" data-param="air">
+                <input type="text" class="param-value" inputmode="decimal" data-param="air">
               </div>
             </div>
           </div>
