@@ -95,10 +95,15 @@
   window.addEventListener('pagehide', closeCtx);
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.action === 'apply_tweak') {
-      if (msg.tweak === 'compressor') setCompressor(msg.enabled, msg.params);
-      sendResponse({ ok: true });
+    try {
+      if (msg.action === 'apply_tweak') {
+        if (msg.tweak === 'compressor') setCompressor(msg.enabled, msg.params);
+        sendResponse({ ok: true });
+      } else {
+        sendResponse({ ok: false, error: 'unknown action' });
+      }
+    } catch (e) {
+      sendResponse({ ok: false, error: e.message });
     }
-    return true;
   });
 })();

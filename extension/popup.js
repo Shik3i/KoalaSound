@@ -1,5 +1,6 @@
 let targetTabId = null;
 let currentTabData = null;
+let sendQueue = Promise.resolve();
 
 const PRESETS = {
   compressor: {
@@ -65,7 +66,6 @@ function setupTabSelect() {
   });
 
   document.addEventListener('click', closeDropdown);
-
   dropdown.addEventListener('click', e => e.stopPropagation());
 }
 
@@ -145,25 +145,19 @@ function updateTrigger(tab, isMedia) {
   trigger.querySelector('.tab-select-label').textContent = tab.title || 'Untitled';
 }
 
-function resetTrigger() {
-  const trigger = document.getElementById('tabSelectTrigger');
-  trigger.querySelector('.tab-select-icon').textContent = '🌐';
-  trigger.querySelector('.tab-select-label').textContent = 'No tab selected';
-  trigger.classList.remove('open');
-}
-
 /* ─── tab lifecycle ─── */
 
 async function tryRestoreTab() {
   const { targetTabId: saved } = await chrome.storage.local.get('targetTabId');
   if (!saved) return;
 
-  const allTabs = await chrome.tabs.query({});
-  const tab = allTabs.find(t => t.id === saved);
-  if (!tab) return;
-
-  selectTab(tab.id);
-  updateTrigger(tab, tab.audible);
+  try {
+    const tab = await chrome.tabs.get(saved);
+    selectTab(tab.id);
+    updateTrigger(tab, tab.audible);
+  } catch {
+    /* tab gone since last session — start fresh */
+  }
 }
 
 async function selectTab(tabId) {
@@ -270,7 +264,7 @@ function setupCustomSliders() {
     if (!master.checked) return;
 
     const params = getCustomParams(group);
-    await sendOnly(group.dataset.group, params, true);
+    await queuedSend(group.dataset.group, params, true);
   }, 40);
 
   document.querySelectorAll('.custom-controls input[data-param]').forEach(slider => {
@@ -324,22 +318,41 @@ async function persistAndSend(groupName, enabled, preset, params) {
     [key]: { ...(state || {}), [groupName]: groupState }
   });
 
-  await sendOnly(groupName, params, enabled);
+  await queuedSend(groupName, params, enabled);
   setStatus(enabled ? `${preset} ON` : `${groupName} OFF`);
 }
 
-async function sendOnly(groupName, params, enabled) {
-  try {
-    await chrome.tabs.sendMessage(targetTabId, {
-      action: 'apply_tweak',
-      tweak: groupName,
-      enabled: enabled !== undefined ? enabled : true,
-      params
-    });
-  } catch (e) {
-    const msg = e.message && e.message.includes('tab')
-      ? 'Tab gone – select a new one'
-      : 'Reload the target tab to activate';
-    setStatus(msg, true);
-  }
+/* ─── serialised sendMessage with retry ─── */
+
+async function queuedSend(groupName, params, enabled) {
+  await sendQueue;
+  sendQueue = (async () => {
+    if (!targetTabId) return;
+
+    try {
+      await chrome.tabs.get(targetTabId);
+    } catch {
+      setStatus('Tab no longer exists – select a new one', true);
+      return;
+    }
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await chrome.tabs.sendMessage(targetTabId, {
+          action: 'apply_tweak',
+          tweak: groupName,
+          enabled: enabled !== undefined ? enabled : true,
+          params
+        });
+        return;
+      } catch {
+        if (attempt === 0) {
+          await new Promise(r => setTimeout(r, 150));
+        } else {
+          setStatus('Tab unreachable – reload or re-select', true);
+        }
+      }
+    }
+  })();
+  await sendQueue;
 }
