@@ -8,6 +8,7 @@ const PRESETS = {
     presets: {
       gentle:   { threshold: -20, knee: 10, ratio: 4,  attack: 0.005, release: 0.05  },
       moderate: { threshold: -30, knee: 15, ratio: 8,  attack: 0.003, release: 0.08  },
+      movie:    { threshold: -35, knee: 10, ratio: 12, attack: 0.002, release: 0.25  },
       heavy:    { threshold: -40, knee: 5,  ratio: 20, attack: 0.002, release: 0.1   },
       custom:   { threshold: -24, knee: 30, ratio: 12, attack: 0.003, release: 0.25  }
     }

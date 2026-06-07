@@ -57,8 +57,9 @@ git clone https://github.com/Shik3i/KoalaSound.git
 
 | Preset | Threshold | Ratio | Release | Best for |
 |--------|-----------|-------|---------|----------|
-| **Gentle** | −20 dB | 4:1 | 50 ms | Dialogue, movies, speech |
+| **Gentle** | −20 dB | 4:1 | 50 ms | Dialogue, speech |
 | **Moderate** | −30 dB | 8:1 | 80 ms | General purpose, podcasts |
+| **Movie** 🎬 | −35 dB | 12:1 | 250 ms | Action flics — Dialog lauter, Explosionen leiser |
 | **Heavy** | −40 dB | 20:1 | 100 ms | Extreme dynamic range, quiet environments |
 | **Custom** | any | any | any | Experimentation / live tuning |
 
