@@ -197,12 +197,12 @@ async function restoreTweakState() {
       if (cp) {
         Object.assign(PRESETS[name].presets.custom, cp);
       }
-      controls.querySelectorAll('input[data-param]').forEach(slider => {
+      controls.querySelectorAll('input[type="range"]').forEach(slider => {
         const val = PRESETS[name].presets.custom[slider.dataset.param];
         if (val !== undefined) {
           slider.value = val;
           const valueEl = slider.parentElement.querySelector('.param-value');
-          if (valueEl) valueEl.textContent = formatParam(slider.dataset.param, val);
+          if (valueEl) valueEl.value = formatParam(slider.dataset.param, val);
         }
       });
       controls.classList.toggle('visible', preset === 'custom');
@@ -258,6 +258,24 @@ function setupPresetRadios() {
 
 /* ─── custom slider live preview ─── */
 
+function parseRawValue(str) {
+  const m = String(str).match(/-?\d+\.?\d*/);
+  return m ? parseFloat(m[0]) : NaN;
+}
+
+function setSliderFromInput(input, slider) {
+  const raw = parseRawValue(input.value);
+  if (isNaN(raw)) return false;
+  const min = parseFloat(slider.min);
+  const max = parseFloat(slider.max);
+  const step = parseFloat(slider.step);
+  const clamped = Math.min(max, Math.max(min, raw));
+  const stepped = Math.round(clamped / step) * step;
+  slider.value = Math.round(stepped * 1000) / 1000;
+  input.value = formatParam(slider.dataset.param, parseFloat(slider.value));
+  return true;
+}
+
 function setupCustomSliders() {
   const liveSend = debounce(async group => {
     if (!targetTabId) return;
@@ -268,14 +286,14 @@ function setupCustomSliders() {
     await queuedSend(group.dataset.group, params, true);
   }, 40);
 
-  document.querySelectorAll('.custom-controls input[data-param]').forEach(slider => {
+  document.querySelectorAll('.custom-controls input[type="range"]').forEach(slider => {
     const group = slider.closest('.tweak-group');
 
     slider.addEventListener('input', () => {
       const param = slider.dataset.param;
       const value = parseFloat(slider.value);
       const valueEl = slider.parentElement.querySelector('.param-value');
-      if (valueEl) valueEl.textContent = formatParam(param, value);
+      if (valueEl) valueEl.value = formatParam(param, value);
 
       PRESETS[group.dataset.group].presets.custom[param] = value;
       liveSend(group);
@@ -291,11 +309,51 @@ function setupCustomSliders() {
       });
     });
   });
+
+  document.querySelectorAll('.custom-controls .param-value').forEach(input => {
+    const group = input.closest('.tweak-group');
+    const slider = input.parentElement.querySelector('input[type="range"]');
+    if (!slider) return;
+
+    input.addEventListener('change', () => {
+      if (!setSliderFromInput(input, slider)) {
+        input.value = formatParam(slider.dataset.param, parseFloat(slider.value));
+        return;
+      }
+      const param = slider.dataset.param;
+      const value = parseFloat(slider.value);
+      PRESETS[group.dataset.group].presets.custom[param] = value;
+
+      const name = group.dataset.group;
+      const params = getCustomParams(group);
+      const key = `tab_${targetTabId}`;
+      chrome.storage.local.get(key).then(({ [key]: state }) =>
+        chrome.storage.local.set({
+          [key]: { ...(state || {}), [name]: { ...(state?.[name] || {}), customParams: params } }
+        })
+      );
+
+      if (targetTabId && group.querySelector('.group-master-toggle')?.checked) {
+        queuedSend(name, params, true);
+      }
+    });
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.dispatchEvent(new Event('change'));
+      }
+      if (e.key === 'Escape') {
+        input.value = formatParam(slider.dataset.param, parseFloat(slider.value));
+        input.blur();
+      }
+    });
+  });
 }
 
 function getCustomParams(group) {
   const params = {};
-  group.querySelectorAll('.custom-controls input[data-param]').forEach(slider => {
+  group.querySelectorAll('.custom-controls input[type="range"]').forEach(slider => {
     params[slider.dataset.param] = parseFloat(slider.value);
   });
   return params;
