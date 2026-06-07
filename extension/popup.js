@@ -16,6 +16,10 @@ const PRESETS = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
+  const { version_name } = chrome.runtime.getManifest();
+  const prefix = document.querySelector('.header-version');
+  if (prefix) prefix.textContent = `v${version_name}`;
+
   setupTabSelect();
   setupAccordion();
   setupPresetRadios();

@@ -14,6 +14,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set version from tag in manifest
+        run: |
+          TAG="${{ github.ref_name }}"
+          V="${TAG#v}"
+          if [[ "$V" =~ ^[0-9]+\.[0-9]+$ ]]; then V_FULL="${V}.0"; else V_FULL="$V"; fi
+          jq --arg v "$V_FULL" --arg vn "$V" \
+            '.version = $v | .version_name = $vn' \
+            extension/manifest.json > tmp.json && mv tmp.json extension/manifest.json
+
       - name: Package extension
         run: |
           cd extension
