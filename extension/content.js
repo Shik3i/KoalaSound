@@ -168,7 +168,10 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     try {
-      if (msg.action === 'apply_tweak') {
+      if (msg.action === 'cleanup') {
+        closeCtx();
+        sendResponse({ ok: true });
+      } else if (msg.action === 'apply_tweak') {
         switch (msg.tweak) {
           case 'compressor': setCompressor(msg.enabled, msg.params); break;
           case 'equalizer':  setEqualizer(msg.enabled, msg.params); break;

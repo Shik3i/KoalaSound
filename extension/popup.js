@@ -1,5 +1,4 @@
 let targetTabId = null;
-let currentTabData = null;
 let sendQueue = Promise.resolve();
 
 const PRESETS = {
@@ -54,6 +53,21 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
 }
 
+const RESTRICTED_PROTOCOLS = ['chrome:', 'about:', 'edge:', 'chrome-extension:', 'chrome-search:', 'devtools:'];
+
+function isRestrictedUrl(url) {
+  if (!url) return true;
+  return RESTRICTED_PROTOCOLS.some(p => url.startsWith(p));
+}
+
+async function storageGet(key) {
+  try { const r = await chrome.storage.local.get(key); return r[key]; } catch { return undefined; }
+}
+
+async function storageSet(data) {
+  try { await chrome.storage.local.set(data); return true; } catch { return false; }
+}
+
 function formatParam(name, value) {
   switch (name) {
     case 'threshold': return `${value} dB`;
@@ -93,7 +107,23 @@ function setupTabSelect() {
     if (!targetTabId) return;
     try {
       await chrome.tabs.reload(targetTabId);
-      setStatus('Tab reloaded', false);
+      setStatus('Reloading…', false);
+      await new Promise(resolve => {
+        const onUpdated = (tabId, changeInfo) => {
+          if (tabId === targetTabId && changeInfo.status === 'complete') {
+            chrome.tabs.onUpdated.removeListener(onUpdated);
+            resolve();
+          }
+        };
+        chrome.tabs.onUpdated.addListener(onUpdated);
+        setTimeout(() => {
+          chrome.tabs.onUpdated.removeListener(onUpdated);
+          resolve();
+        }, 10000);
+      });
+      await new Promise(r => setTimeout(r, 200));
+      await reapplyState();
+      setStatus('Tab reloaded & state restored', false);
     } catch {
       setStatus('Could not reload tab', true);
     }
@@ -117,7 +147,7 @@ function closeDropdown() {
 
 async function buildDropdown() {
   const dropdown = document.getElementById('tabSelectDropdown');
-  const allTabs = await chrome.tabs.query({});
+  const allTabs = (await chrome.tabs.query({})).filter(t => !isRestrictedUrl(t.url) && t.id !== chrome.tabs.TAB_ID_NONE);
   const mediaTabs = allTabs.filter(t => t.audible);
   const mediaIds = new Set(mediaTabs.map(t => t.id));
   const nonMediaTabs = allTabs.filter(t => !mediaIds.has(t.id));
@@ -179,11 +209,12 @@ function updateTrigger(tab, isMedia) {
 /* ─── tab lifecycle ─── */
 
 async function tryRestoreTab() {
-  const { targetTabId: saved } = await chrome.storage.local.get('targetTabId');
+  const saved = await storageGet('targetTabId');
   if (!saved) return;
 
   try {
     const tab = await chrome.tabs.get(saved);
+    if (isRestrictedUrl(tab.url)) return;
     selectTab(tab.id);
     updateTrigger(tab, tab.audible);
   } catch {
@@ -193,7 +224,7 @@ async function tryRestoreTab() {
 
 async function selectTab(tabId) {
   targetTabId = tabId;
-  await chrome.storage.local.set({ targetTabId: tabId });
+  await storageSet({ targetTabId: tabId });
 
   document.getElementById('tweaks').classList.remove('disabled');
 
@@ -208,7 +239,7 @@ async function selectTab(tabId) {
 
 async function restoreTweakState() {
   const key = `tab_${targetTabId}`;
-  const { [key]: state } = await chrome.storage.local.get(key);
+  const state = await storageGet(key);
 
   document.querySelectorAll('.tweak-group').forEach(group => {
     const name = group.dataset.group;
@@ -337,8 +368,8 @@ function setupCustomSliders() {
       const name = group.dataset.group;
       const params = getCustomParams(group);
       const key = `tab_${targetTabId}`;
-      const { [key]: state } = await chrome.storage.local.get(key);
-      await chrome.storage.local.set({
+      const state = await storageGet(key);
+      await storageSet({
         [key]: { ...(state || {}), [name]: { ...(state?.[name] || {}), customParams: params } }
       });
     });
@@ -361,8 +392,8 @@ function setupCustomSliders() {
       const name = group.dataset.group;
       const params = getCustomParams(group);
       const key = `tab_${targetTabId}`;
-      const { [key]: state } = await chrome.storage.local.get(key);
-      await chrome.storage.local.set({
+      const state = await storageGet(key);
+      await storageSet({
         [key]: { ...(state || {}), [name]: { ...(state?.[name] || {}), customParams: params } }
       });
 
@@ -399,27 +430,39 @@ function selectedPreset(groupName) {
   return r ? r.value : PRESETS[groupName].defaultPreset;
 }
 
+async function reapplyState() {
+  document.querySelectorAll('.tweak-group').forEach(group => {
+    const name = group.dataset.group;
+    const enabled = group.querySelector('.group-master-toggle').checked;
+    if (!enabled) return;
+    const preset = selectedPreset(name);
+    const params = PRESETS[name].presets[preset];
+    queuedSend(name, params, true);
+  });
+}
+
 async function persistAndSend(groupName, enabled, preset, params) {
-  const key = `tab_${targetTabId}`;
-  const { [key]: state } = await chrome.storage.local.get(key);
+  const tabId = targetTabId;
+  const key = `tab_${tabId}`;
+  const state = await storageGet(key);
 
   const groupState = { enabled, preset };
   if (preset === 'custom') groupState.customParams = params;
 
-  await chrome.storage.local.set({
+  await storageSet({
     [key]: { ...(state || {}), [groupName]: groupState }
   });
 
-  const ok = await queuedSend(groupName, params, enabled);
+  const ok = await queuedSend(groupName, params, enabled, tabId);
   if (ok) setStatus(enabled ? `${preset} ON` : `${groupName} OFF`);
 }
 
 /* ─── serialised sendMessage with retry ─── */
 
-async function queuedSend(groupName, params, enabled) {
+async function queuedSend(groupName, params, enabled, forceTabId) {
   await sendQueue;
   const task = (async () => {
-    const tabId = targetTabId;
+    const tabId = forceTabId || targetTabId;
     if (!tabId) return false;
 
     try {
