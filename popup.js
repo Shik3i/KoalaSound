@@ -1,10 +1,40 @@
 let targetTabId = null;
 
+const PRESETS = {
+  compressor: {
+    defaultPreset: 'gentle',
+    presets: {
+      gentle: {
+        threshold: -20, knee: 10, ratio: 4, attack: 0.005, release: 0.05
+      },
+      moderate: {
+        threshold: -30, knee: 15, ratio: 8, attack: 0.003, release: 0.08
+      },
+      heavy: {
+        threshold: -40, knee: 5, ratio: 20, attack: 0.002, release: 0.1
+      }
+    }
+  }
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
   await renderTabs();
-  setupTweakListeners();
+  setupAccordion();
+  setupPresetRadios();
   await restoreTargetTab();
 });
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.className = isError ? 'error' : '';
+  clearTimeout(el._timeout);
+  if (msg) {
+    el._timeout = setTimeout(() => { el.textContent = ''; el.className = ''; }, 4000);
+  }
+}
+
+/* ── tabs ── */
 
 async function restoreTargetTab() {
   const { targetTabId: saved } = await chrome.storage.local.get('targetTabId');
@@ -13,16 +43,6 @@ async function restoreTargetTab() {
     if (tabs.some(t => t.id === saved)) {
       selectTab(saved);
     }
-  }
-}
-
-function setStatus(msg, isError = false) {
-  const el = document.getElementById('status-bar');
-  el.textContent = msg;
-  el.className = isError ? 'error' : '';
-  clearTimeout(el._timeout);
-  if (msg) {
-    el._timeout = setTimeout(() => { el.textContent = ''; el.className = ''; }, 4000);
   }
 }
 
@@ -38,7 +58,7 @@ async function renderTabs() {
 
   mediaTabs.forEach(tab => container.appendChild(createTabItem(tab, true)));
 
-  if (mediaTabs.length > 0 && nonMediaTabs.length > 0) {
+  if (mediaTabs.length && nonMediaTabs.length) {
     const sep = document.createElement('div');
     sep.className = 'separator';
     container.appendChild(sep);
@@ -87,39 +107,87 @@ async function selectTab(tabId) {
 
 async function restoreTweakState() {
   const key = `tab_${targetTabId}`;
-  const result = await chrome.storage.local.get(key);
-  const state = result[key] || {};
+  const { [key]: state } = await chrome.storage.local.get(key);
 
-  document.querySelectorAll('.tweak-toggle').forEach(input => {
-    const name = input.dataset.tweak;
-    input.checked = state[name] || false;
+  document.querySelectorAll('.tweak-group').forEach(group => {
+    const name = group.dataset.group;
+    const gs = (state && state[name]) || {};
+    const master = group.querySelector('.group-master-toggle');
+    const radio = group.querySelector(`input[value="${gs.preset || PRESETS[name].defaultPreset}"]`);
+
+    master.checked = gs.enabled === true;
+    if (radio) radio.checked = true;
   });
 }
 
-function setupTweakListeners() {
-  document.querySelectorAll('.tweak-toggle').forEach(input => {
-    input.addEventListener('change', async () => {
-      if (!targetTabId) return;
+/* ── accordion ── */
 
-      const tweak = input.dataset.tweak;
-      const enabled = input.checked;
-
-      const key = `tab_${targetTabId}`;
-      const result = await chrome.storage.local.get(key);
-      const state = result[key] || {};
-      state[tweak] = enabled;
-      await chrome.storage.local.set({ [key]: state });
-
-      try {
-        await chrome.tabs.sendMessage(targetTabId, {
-          action: 'apply_tweak',
-          tweak,
-          enabled
-        });
-        setStatus(enabled ? `${tweak} ON` : `${tweak} OFF`);
-      } catch {
-        setStatus('Refresh the target tab to activate', true);
-      }
+function setupAccordion() {
+  document.querySelectorAll('.tweak-group-header').forEach(header => {
+    header.addEventListener('click', e => {
+      if (e.target.closest('.switch')) return;
+      const body = header.nextElementSibling;
+      const expanded = body.classList.toggle('expanded');
+      header.classList.toggle('expanded', expanded);
     });
   });
+
+  document.querySelectorAll('.group-master-toggle').forEach(toggle => {
+    toggle.addEventListener('change', async () => {
+      if (!targetTabId) return;
+      const group = toggle.closest('.tweak-group');
+      const name = group.dataset.group;
+      const enabled = toggle.checked;
+      const preset = selectedPreset(name);
+      const params = PRESETS[name].presets[preset];
+
+      await persistAndSend(name, enabled, preset, params);
+    });
+  });
+}
+
+function setupPresetRadios() {
+  document.querySelectorAll('.preset-option input[type="radio"]').forEach(radio => {
+    radio.addEventListener('change', async () => {
+      if (!targetTabId || !radio.checked) return;
+      const group = radio.closest('.tweak-group');
+      const name = group.dataset.group;
+      const preset = radio.value;
+      const params = PRESETS[name].presets[preset];
+
+      group.querySelector('.group-master-toggle').checked = true;
+      await persistAndSend(name, true, preset, params);
+    });
+  });
+}
+
+/* ── helpers ── */
+
+function selectedPreset(groupName) {
+  const r = document.querySelector(`input[name="${groupName}-preset"]:checked`);
+  return r ? r.value : PRESETS[groupName].defaultPreset;
+}
+
+async function persistAndSend(groupName, enabled, preset, params) {
+  const key = `tab_${targetTabId}`;
+  const { [key]: state } = await chrome.storage.local.get(key);
+  await chrome.storage.local.set({
+    [key]: { ...(state || {}), [groupName]: { enabled, preset } }
+  });
+
+  try {
+    await chrome.tabs.sendMessage(targetTabId, {
+      action: 'apply_tweak',
+      tweak: groupName,
+      enabled,
+      preset,
+      params
+    });
+    setStatus(enabled ? `${preset} ON` : `${groupName} OFF`);
+  } catch (e) {
+    const msg = e.message && e.message.includes('tab')
+      ? 'Tab gone – select a new one'
+      : 'Reload the target tab to activate';
+    setStatus(msg, true);
+  }
 }

@@ -15,7 +15,7 @@
     }
     if (audioCtx.state === 'suspended') {
       audioCtx.resume().catch(() => {
-        console.warn('KoalaSound: AudioContext suspended — needs user gesture in tab');
+        console.warn('KoalaSound: needs tab interaction to resume AudioContext');
       });
     }
     return audioCtx;
@@ -41,12 +41,6 @@
       const wetGain = ctx.createGain();
       const dest = ctx.destination;
 
-      compressor.threshold.value = -20;
-      compressor.knee.value = 10;
-      compressor.ratio.value = 4;
-      compressor.attack.value = 0.005;
-      compressor.release.value = 0.05;
-
       src.connect(dryGain);
       dryGain.connect(dest);
 
@@ -57,47 +51,52 @@
       dryGain.gain.value = 1;
       wetGain.gain.value = 0;
 
-      const chain = { ctx, src, compressor, dryGain, wetGain, bypassed: true };
+      const chain = { compressor, dryGain, wetGain, bypassed: true };
       chains.set(el, chain);
       return chain;
     } catch (e) {
-      console.warn('KoalaSound: setup failed for element', e);
+      console.warn('KoalaSound: setup failed — element may already use Web Audio', e);
       return null;
     }
   }
 
-  function setCompressor(enabled) {
+  function setCompressor(enabled, params) {
     const media = document.querySelectorAll('video, audio');
-    let applied = 0;
+
+    if (media.length === 0) {
+      console.warn('KoalaSound: no media elements on this page');
+    }
 
     media.forEach(el => {
       const chain = setupChain(el);
       if (!chain) return;
+
+      if (params) {
+        if (params.threshold !== undefined) chain.compressor.threshold.value = params.threshold;
+        if (params.knee !== undefined) chain.compressor.knee.value = params.knee;
+        if (params.ratio !== undefined) chain.compressor.ratio.value = params.ratio;
+        if (params.attack !== undefined) chain.compressor.attack.value = params.attack;
+        if (params.release !== undefined) chain.compressor.release.value = params.release;
+      }
 
       const t = chain.dryGain.context.currentTime;
       if (enabled && chain.bypassed) {
         chain.dryGain.gain.linearRampToValueAtTime(0, t + 0.04);
         chain.wetGain.gain.linearRampToValueAtTime(1, t + 0.04);
         chain.bypassed = false;
-        applied++;
       } else if (!enabled && !chain.bypassed) {
         chain.wetGain.gain.linearRampToValueAtTime(0, t + 0.04);
         chain.dryGain.gain.linearRampToValueAtTime(1, t + 0.04);
         chain.bypassed = true;
-        applied++;
       }
     });
-
-    if (media.length === 0) {
-      console.warn('KoalaSound: no video/audio elements found on page');
-    }
   }
 
   window.addEventListener('pagehide', closeCtx);
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (msg.action === 'apply_tweak') {
-      if (msg.tweak === 'compressor') setCompressor(msg.enabled);
+      if (msg.tweak === 'compressor') setCompressor(msg.enabled, msg.params);
       sendResponse({ ok: true });
     }
     return true;

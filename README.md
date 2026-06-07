@@ -7,8 +7,8 @@ A lightweight Chrome extension that lets you select a tab and apply real-time au
 ## Features
 
 - **Tab picker** – lists all open tabs; audible (media-playing) tabs float to the top with 🔊 and 🎬 markers
-- **Compressor** – DynamicsCompressorNode with gentle movie-friendly presets (-20 dB threshold, 4:1 ratio, 10 dB knee)
-- **Toggle persistence** – per-tab tweak state survives popup close (stored in `chrome.storage.local`)
+- **Compressor** – DynamicsCompressorNode with 3 presets (Gentle / Moderate / Heavy) inside an accordion group
+- **Per-tab persistence** – selected tab, active presets, and on/off state survive popup close (`chrome.storage.local`)
 
 ## How to install (developer mode)
 
@@ -27,8 +27,9 @@ Existing tabs need a one-time refresh for the content script to be injected.
 
 1. Click the KoalaSound toolbar icon
 2. Pick a tab from the list (media tabs are grouped on top)
-3. Flip the **Compressor** toggle on
-4. Play a video in that tab — volume differences are smoothed
+3. Expand the **Compressor** group by clicking the header
+4. Choose a preset (Gentle, Moderate, or Heavy) — or flip the master toggle to re-activate the last preset
+5. Play a video in that tab — volume differences are smoothed
 
 ## Architecture
 

@@ -18,13 +18,35 @@
     <div id="tweaks-section">
       <h2>Audio Tweaks</h2>
       <div id="tweaks" class="disabled">
-        <div class="tweak">
-          <span>Compressor</span>
-          <label class="switch">
-            <input type="checkbox" class="tweak-toggle" data-tweak="compressor">
-            <span class="slider"></span>
-          </label>
+
+        <div class="tweak-group" data-group="compressor">
+          <div class="tweak-group-header">
+            <span class="tweak-group-arrow">▶</span>
+            <span class="tweak-group-label">Compressor</span>
+            <label class="switch">
+              <input type="checkbox" class="group-master-toggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="tweak-group-body">
+            <label class="preset-option">
+              <input type="radio" name="compressor-preset" value="gentle">
+              <span class="preset-name">Gentle</span>
+              <span class="preset-desc">-20dB · 4:1</span>
+            </label>
+            <label class="preset-option">
+              <input type="radio" name="compressor-preset" value="moderate">
+              <span class="preset-name">Moderate</span>
+              <span class="preset-desc">-30dB · 8:1</span>
+            </label>
+            <label class="preset-option">
+              <input type="radio" name="compressor-preset" value="heavy">
+              <span class="preset-name">Heavy</span>
+              <span class="preset-desc">-40dB · 20:1</span>
+            </label>
+          </div>
         </div>
+
       </div>
     </div>
 
