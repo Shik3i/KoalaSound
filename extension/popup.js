@@ -1,26 +1,27 @@
 let targetTabId = null;
+let currentTabData = null;
 
 const PRESETS = {
   compressor: {
     defaultPreset: 'gentle',
     presets: {
-      gentle:  { threshold: -20, knee: 10, ratio: 4,  attack: 0.005, release: 0.05  },
-      moderate:{ threshold: -30, knee: 15, ratio: 8,  attack: 0.003, release: 0.08  },
-      heavy:   { threshold: -40, knee: 5,  ratio: 20, attack: 0.002, release: 0.1   },
-      custom:  { threshold: -24, knee: 30, ratio: 12, attack: 0.003, release: 0.25  }
+      gentle:   { threshold: -20, knee: 10, ratio: 4,  attack: 0.005, release: 0.05  },
+      moderate: { threshold: -30, knee: 15, ratio: 8,  attack: 0.003, release: 0.08  },
+      heavy:    { threshold: -40, knee: 5,  ratio: 20, attack: 0.002, release: 0.1   },
+      custom:   { threshold: -24, knee: 30, ratio: 12, attack: 0.003, release: 0.25  }
     }
   }
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-  await renderTabs();
+  setupTabSelect();
   setupAccordion();
   setupPresetRadios();
   setupCustomSliders();
-  await restoreTargetTab();
+  await tryRestoreTab();
 });
 
-/* ── helpers ── */
+/* ─── helpers ─── */
 
 function setStatus(msg, isError) {
   const el = document.getElementById('status-bar');
@@ -42,80 +43,143 @@ function formatParam(name, value) {
     case 'threshold': return `${value} dB`;
     case 'knee':      return `${value} dB`;
     case 'ratio':     return `${value}:1`;
-    case 'attack':    return `${Math.round(value * 1000)} ms`;
+    case 'attack':
     case 'release':   return `${Math.round(value * 1000)} ms`;
     default:          return value;
   }
 }
 
-/* ── tabs ── */
+/* ─── tab select dropdown ─── */
 
-async function restoreTargetTab() {
-  const { targetTabId: saved } = await chrome.storage.local.get('targetTabId');
-  if (saved) {
-    const tabs = await chrome.tabs.query({});
-    if (tabs.some(t => t.id === saved)) selectTab(saved);
-  }
+function setupTabSelect() {
+  const trigger = document.getElementById('tabSelectTrigger');
+  const dropdown = document.getElementById('tabSelectDropdown');
+
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    if (dropdown.classList.contains('open')) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
+  });
+
+  document.addEventListener('click', closeDropdown);
+
+  dropdown.addEventListener('click', e => e.stopPropagation());
 }
 
-async function renderTabs() {
+function openDropdown() {
+  const trigger = document.getElementById('tabSelectTrigger');
+  const dropdown = document.getElementById('tabSelectDropdown');
+  buildDropdown();
+  dropdown.classList.add('open');
+  trigger.classList.add('open');
+}
+
+function closeDropdown() {
+  const trigger = document.getElementById('tabSelectTrigger');
+  const dropdown = document.getElementById('tabSelectDropdown');
+  dropdown.classList.remove('open');
+  trigger.classList.remove('open');
+}
+
+async function buildDropdown() {
+  const dropdown = document.getElementById('tabSelectDropdown');
   const allTabs = await chrome.tabs.query({});
   const mediaTabs = allTabs.filter(t => t.audible);
   const mediaIds = new Set(mediaTabs.map(t => t.id));
   const nonMediaTabs = allTabs.filter(t => !mediaIds.has(t.id));
 
-  const container = document.getElementById('tab-list');
-  container.innerHTML = '';
-  document.getElementById('tab-count').textContent = allTabs.length;
+  dropdown.innerHTML = '';
 
-  mediaTabs.forEach(tab => container.appendChild(createTabItem(tab, true)));
-
+  mediaTabs.forEach(tab => dropdown.appendChild(createOption(tab, true)));
   if (mediaTabs.length && nonMediaTabs.length) {
     const sep = document.createElement('div');
-    sep.className = 'separator';
-    container.appendChild(sep);
+    sep.className = 'tab-opt-sep';
+    dropdown.appendChild(sep);
   }
+  nonMediaTabs.forEach(tab => dropdown.appendChild(createOption(tab, false)));
 
-  nonMediaTabs.forEach(tab => container.appendChild(createTabItem(tab, false)));
+  if (!allTabs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'tab-opt-empty';
+    empty.textContent = 'No tabs found';
+    dropdown.appendChild(empty);
+  }
 }
 
-function createTabItem(tab, isMedia) {
+function createOption(tab, isMedia) {
   const div = document.createElement('div');
-  div.className = 'tab-item';
+  div.className = 'tab-option';
   div.dataset.tabId = tab.id;
+  if (tab.id === targetTabId) div.classList.add('selected');
+
+  const icon = document.createElement('span');
+  icon.className = 'tab-opt-icon';
+  icon.textContent = isMedia ? '🔊' : '🌐';
 
   const label = document.createElement('span');
-  label.className = 'tab-label';
-  label.textContent = `${isMedia ? '🎬 ' : ''}${tab.title || 'Untitled'}`;
+  label.className = 'tab-opt-label';
+  label.textContent = tab.title || 'Untitled';
+  label.title = tab.title || '';
 
   const domain = document.createElement('span');
-  domain.className = 'tab-domain';
-  try {
-    domain.textContent = new URL(tab.url).hostname.replace(/^www\./, '');
-  } catch {
-    domain.textContent = '';
-  }
+  domain.className = 'tab-opt-domain';
+  try { domain.textContent = new URL(tab.url).hostname.replace(/^www\./, ''); } catch {}
 
-  const indicator = document.createElement('span');
-  indicator.className = 'tab-indicator';
-  if (isMedia) indicator.textContent = '🔊';
-
-  div.append(indicator, label, domain);
-  div.addEventListener('click', () => selectTab(tab.id));
+  div.append(icon, label, domain);
+  div.addEventListener('click', () => handleTabSelect(tab, isMedia));
   return div;
+}
+
+function handleTabSelect(tab, isMedia) {
+  selectTab(tab.id);
+  updateTrigger(tab, isMedia);
+  closeDropdown();
+}
+
+function updateTrigger(tab, isMedia) {
+  const trigger = document.getElementById('tabSelectTrigger');
+  trigger.querySelector('.tab-select-icon').textContent = isMedia ? '🔊' : '🌐';
+  trigger.querySelector('.tab-select-label').textContent = tab.title || 'Untitled';
+}
+
+function resetTrigger() {
+  const trigger = document.getElementById('tabSelectTrigger');
+  trigger.querySelector('.tab-select-icon').textContent = '🌐';
+  trigger.querySelector('.tab-select-label').textContent = 'No tab selected';
+  trigger.classList.remove('open');
+}
+
+/* ─── tab lifecycle ─── */
+
+async function tryRestoreTab() {
+  const { targetTabId: saved } = await chrome.storage.local.get('targetTabId');
+  if (!saved) return;
+
+  const allTabs = await chrome.tabs.query({});
+  const tab = allTabs.find(t => t.id === saved);
+  if (!tab) return;
+
+  selectTab(tab.id);
+  updateTrigger(tab, tab.audible);
 }
 
 async function selectTab(tabId) {
   targetTabId = tabId;
   await chrome.storage.local.set({ targetTabId: tabId });
 
-  document.querySelectorAll('.tab-item').forEach(el => {
+  document.getElementById('tweaks').classList.remove('disabled');
+
+  document.querySelectorAll('.tab-option').forEach(el => {
     el.classList.toggle('selected', parseInt(el.dataset.tabId) === tabId);
   });
 
-  document.getElementById('tweaks').classList.remove('disabled');
   await restoreTweakState();
 }
+
+/* ─── tweak state ─── */
 
 async function restoreTweakState() {
   const key = `tab_${targetTabId}`;
@@ -136,7 +200,7 @@ async function restoreTweakState() {
     if (controls) {
       const cp = gs.customParams;
       if (cp) {
-        PRESETS[name].presets.custom = { ...PRESETS[name].presets.custom, ...cp };
+        Object.assign(PRESETS[name].presets.custom, cp);
       }
       controls.querySelectorAll('input[data-param]').forEach(slider => {
         const val = PRESETS[name].presets.custom[slider.dataset.param];
@@ -146,20 +210,20 @@ async function restoreTweakState() {
           if (valueEl) valueEl.textContent = formatParam(slider.dataset.param, val);
         }
       });
-      controls.classList.toggle('visible', radio && radio.value === 'custom' && radio.checked);
+      controls.classList.toggle('visible', preset === 'custom');
     }
   });
 }
 
-/* ── accordion ── */
+/* ─── accordion / master toggle ─── */
 
 function setupAccordion() {
   document.querySelectorAll('.tweak-group-header').forEach(header => {
     header.addEventListener('click', e => {
       if (e.target.closest('.switch')) return;
       const body = header.nextElementSibling;
-      body.classList.toggle('expanded');
-      header.classList.toggle('expanded');
+      const expanded = body.classList.toggle('expanded');
+      header.classList.toggle('expanded', expanded);
     });
   });
 
@@ -197,17 +261,16 @@ function setupPresetRadios() {
   });
 }
 
-/* ── custom slider live preview ── */
+/* ─── custom slider live preview ─── */
 
 function setupCustomSliders() {
   const liveSend = debounce(async group => {
     if (!targetTabId) return;
-    const name = group.dataset.group;
     const master = group.querySelector('.group-master-toggle');
     if (!master.checked) return;
 
     const params = getCustomParams(group);
-    await sendOnly(name, params);
+    await sendOnly(group.dataset.group, params, true);
   }, 40);
 
   document.querySelectorAll('.custom-controls input[data-param]').forEach(slider => {
@@ -243,7 +306,7 @@ function getCustomParams(group) {
   return params;
 }
 
-/* ── state / messaging ── */
+/* ─── state / messaging ─── */
 
 function selectedPreset(groupName) {
   const r = document.querySelector(`input[name="${groupName}-preset"]:checked`);
@@ -262,6 +325,7 @@ async function persistAndSend(groupName, enabled, preset, params) {
   });
 
   await sendOnly(groupName, params, enabled);
+  setStatus(enabled ? `${preset} ON` : `${groupName} OFF`);
 }
 
 async function sendOnly(groupName, params, enabled) {
