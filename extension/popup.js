@@ -185,8 +185,12 @@ async function restoreTweakState() {
     const gs = (state && state[name]) || {};
     const master = group.querySelector('.group-master-toggle');
 
-    const preset = gs.preset || PRESETS[name].defaultPreset;
-    const radio = group.querySelector(`input[value="${preset}"]`);
+    let preset = gs.preset || PRESETS[name].defaultPreset;
+    let radio = group.querySelector(`input[value="${preset}"]`);
+    if (!radio) {
+      preset = PRESETS[name].defaultPreset;
+      radio = group.querySelector(`input[value="${preset}"]`);
+    }
 
     master.checked = gs.enabled === true;
     if (radio) radio.checked = true;
@@ -238,7 +242,7 @@ function setupAccordion() {
 
 function setupPresetRadios() {
   document.querySelectorAll('.preset-option input[type="radio"]').forEach(radio => {
-    radio.addEventListener('change', () => {
+    radio.addEventListener('change', async () => {
       if (!targetTabId || !radio.checked) return;
 
       const group = radio.closest('.tweak-group');
@@ -251,7 +255,7 @@ function setupPresetRadios() {
       group.querySelector('.group-master-toggle').checked = true;
 
       const params = PRESETS[name].presets[preset];
-      persistAndSend(name, true, preset, params);
+      await persistAndSend(name, true, preset, params);
     });
   });
 }
@@ -315,7 +319,7 @@ function setupCustomSliders() {
     const slider = input.parentElement.querySelector('input[type="range"]');
     if (!slider) return;
 
-    input.addEventListener('change', () => {
+    input.addEventListener('change', async () => {
       if (!setSliderFromInput(input, slider)) {
         input.value = formatParam(slider.dataset.param, parseFloat(slider.value));
         return;
@@ -327,11 +331,10 @@ function setupCustomSliders() {
       const name = group.dataset.group;
       const params = getCustomParams(group);
       const key = `tab_${targetTabId}`;
-      chrome.storage.local.get(key).then(({ [key]: state }) =>
-        chrome.storage.local.set({
-          [key]: { ...(state || {}), [name]: { ...(state?.[name] || {}), customParams: params } }
-        })
-      );
+      const { [key]: state } = await chrome.storage.local.get(key);
+      await chrome.storage.local.set({
+        [key]: { ...(state || {}), [name]: { ...(state?.[name] || {}), customParams: params } }
+      });
 
       if (targetTabId && group.querySelector('.group-master-toggle')?.checked) {
         queuedSend(name, params, true);
@@ -377,41 +380,45 @@ async function persistAndSend(groupName, enabled, preset, params) {
     [key]: { ...(state || {}), [groupName]: groupState }
   });
 
-  await queuedSend(groupName, params, enabled);
-  setStatus(enabled ? `${preset} ON` : `${groupName} OFF`);
+  const ok = await queuedSend(groupName, params, enabled);
+  if (ok) setStatus(enabled ? `${preset} ON` : `${groupName} OFF`);
 }
 
 /* ─── serialised sendMessage with retry ─── */
 
 async function queuedSend(groupName, params, enabled) {
   await sendQueue;
-  sendQueue = (async () => {
-    if (!targetTabId) return;
+  const task = (async () => {
+    const tabId = targetTabId;
+    if (!tabId) return false;
 
     try {
-      await chrome.tabs.get(targetTabId);
+      await chrome.tabs.get(tabId);
     } catch {
       setStatus('Tab no longer exists – select a new one', true);
-      return;
+      return false;
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await chrome.tabs.sendMessage(targetTabId, {
+        await chrome.tabs.sendMessage(tabId, {
           action: 'apply_tweak',
           tweak: groupName,
           enabled: enabled !== undefined ? enabled : true,
           params
         });
-        return;
+        return true;
       } catch {
         if (attempt === 0) {
           await new Promise(r => setTimeout(r, 150));
         } else {
           setStatus('Tab unreachable – reload or re-select', true);
+          return false;
         }
       }
     }
+    return false;
   })();
-  await sendQueue;
+  sendQueue = task;
+  return await task;
 }

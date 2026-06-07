@@ -32,14 +32,24 @@
 
 ## How to install
 
+> [!NOTE]
+> KoalaSound currently supports **Chromium‑based browsers** only (Chrome, Edge, Brave, Opera).
+> Firefox / Safari are not supported.
+
+### Option A – from source (development)
 ```bash
 git clone https://github.com/Shik3i/KoalaSound.git
 ```
-
 1. Open `chrome://extensions`
 2. Enable **Developer mode** (top‑right toggle)
 3. Click **Load unpacked**
 4. Select the `extension/` folder inside the cloned repo
+
+### Option B – from a release ZIP
+1. Go to the [Releases page](https://github.com/Shik3i/KoalaSound/releases)
+2. Download `koalasound-v*.zip` of your chosen version
+3. Unzip it somewhere permanent
+4. Same steps as Option A: load the `extension/` folder via **Load unpacked**
 
 > [!NOTE]
 > Existing tabs need a one‑time refresh for the content script to be injected.
