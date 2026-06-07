@@ -141,4 +141,4 @@ To add a new tweak category (e.g. EQ, limiter, gain):
 
 ## License
 
-[MIT](LICENSE) © 2026 KoalaSound
+[MIT](LICENSE) © 2026 KoalaDev

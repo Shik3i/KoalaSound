@@ -2,7 +2,10 @@
   "manifest_version": 3,
   "name": "KoalaSound",
   "version": "0.1.0",
-  "description": "Audio tweaks for video tabs — compressor, EQ, and more",
+  "version_name": "0.1.0",
+  "description": "Audio tweaks for video tabs — compressor with live-preview sliders",
+  "author": "KoalaDev",
+  "homepage_url": "https://github.com/Shik3i/KoalaSound",
   "permissions": [
     "tabs",
     "storage"
